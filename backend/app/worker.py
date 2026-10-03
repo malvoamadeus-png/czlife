@@ -176,7 +176,10 @@ async def main() -> None:
     settings = get_settings()
     store = StoryStore(Database(settings))
     store.init()
-    await PlaybackWorker(store).run_forever()
+    worker = PlaybackWorker(store)
+    available = await worker.writer.selector.verify()
+    logger.info("configured GPT models available: %s", ", ".join(available))
+    await worker.run_forever()
 
 
 if __name__ == "__main__":
