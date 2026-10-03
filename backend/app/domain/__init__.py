@@ -1,0 +1,2 @@
+"""Pure story-domain modules."""
+

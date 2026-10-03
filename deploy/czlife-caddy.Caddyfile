@@ -1,0 +1,8 @@
+# Add this block to the existing Caddyfile on jibai-prod.
+czlife-api.47.76.243.147.sslip.io {
+    encode gzip
+    reverse_proxy 127.0.0.1:8820 {
+        flush_interval -1
+    }
+}
+

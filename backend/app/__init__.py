@@ -1,0 +1,2 @@
+"""CZ Life backend package."""
+

@@ -1,0 +1,24 @@
+[Unit]
+Description=CZ Life public story API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=czlife
+Group=czlife
+WorkingDirectory=/opt/czlife/backend
+EnvironmentFile=/etc/czlife/czlife.env
+Environment=PYTHONPATH=/opt/czlife/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/czlife/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8820
+Restart=always
+RestartSec=4
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/czlife
+
+[Install]
+WantedBy=multi-user.target
+
