@@ -9,7 +9,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
+    # Validators below intentionally accept both dotenv-friendly strings and
+    # JSON values; automatic decoding would reject values such as `*` first.
+    model_config = SettingsConfigDict(
+        env_file=".env", env_prefix="", extra="ignore", enable_decoding=False
+    )
 
     app_env: str = "development"
     database_url: str = ""
@@ -53,4 +57,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
