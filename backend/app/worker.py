@@ -47,12 +47,15 @@ class PlaybackWorker:
         tree = self.store.tree(plan["plan_id"], plan["version"])
         snapshot = self.store.snapshot()
         playback = snapshot.get("playback") or {}
+        if playback.get("state") in {"PAUSED", "COMPLETED"}:
+            return False
         route_index = int(playback.get("current_route_index") or 0)
         routes = plan.get("routes") or []
         if route_index >= len(routes):
             self.store.update_playback(plan["plan_id"], plan["version"], state="COMPLETED")
             self.store.append_event(
                 plan_id=plan["plan_id"], version=plan["version"], event_type="story_completed",
+                event_id=f"{plan['plan_id']}:{plan['version']}:completed",
                 payload={"ending": plan["ending"]},
             )
             return True
