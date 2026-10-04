@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import psycopg
 
@@ -49,6 +49,11 @@ class PlaybackWorker:
         playback = snapshot.get("playback") or {}
         if playback.get("state") in {"PAUSED", "COMPLETED"}:
             return False
+        next_run_at = playback.get("next_run_at")
+        if next_run_at:
+            scheduled = datetime.fromisoformat(next_run_at)
+            if scheduled > datetime.now(timezone.utc):
+                return False
         route_index = int(playback.get("current_route_index") or 0)
         routes = plan.get("routes") or []
         if route_index >= len(routes):
@@ -152,7 +157,7 @@ class PlaybackWorker:
                 plan["plan_id"], plan["version"], state="GENERATING_CHAPTER",
                 current_route_index=route_index + (1 if decision["result"] == "failure" else 0),
                 current_node_id=None,
-                next_run_at=datetime.now(timezone.utc),
+                next_run_at=datetime.now(timezone.utc) + timedelta(seconds=self.settings.playback_interval_seconds),
             )
             return True
         except Exception as exc:

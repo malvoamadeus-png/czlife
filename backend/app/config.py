@@ -31,7 +31,9 @@ class Settings(BaseSettings):
     ai_timeout_seconds: int = 180
     ai_retry_attempts: int = 2
 
-    playback_interval_seconds: float = 12.0
+    # Four hours between chapters gives the 18-chapter MVP roughly three days
+    # of public playback after the first chapter starts.
+    playback_interval_seconds: float = 14_400.0
     chapter_target_words: int = 900
 
     @field_validator("public_origins", mode="before")
