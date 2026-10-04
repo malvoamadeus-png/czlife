@@ -56,24 +56,39 @@ button { color: inherit; }
 .node-count { color: var(--muted); font-size: 9px; letter-spacing: .12em; padding-top: 3px; }
 .tree-status { gap: 14px; padding: 0 28px 16px; font-family: 'IBM Plex Mono', monospace; color: var(--muted); font-size: 9px; }
 .tree-status span { display: inline-flex; gap: 6px; align-items: center; }
+.tree-status .future-count { margin-left: auto; color: #596571; letter-spacing: .1em; }
 .legend-dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
 .legend-dot.live { background: var(--yellow); box-shadow: 0 0 8px rgba(240,185,11,.8); }
 .legend-dot.branch { background: var(--red); }
-.tree-canvas { flex: 1; min-height: 0; background-image: linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px); background-size: 24px 24px; }
+.tree-canvas { position: relative; flex: 1; min-height: 0; overflow: hidden; background-image: radial-gradient(ellipse at 50% 92%, rgba(240,185,11,.14), transparent 34%), linear-gradient(rgba(255,255,255,.012) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.012) 1px, transparent 1px); background-size: auto, 24px 24px, 24px 24px; }
+.tree-canvas::before { content: ""; position: absolute; z-index: 0; left: 50%; top: 6%; bottom: 7%; width: 2px; transform: translateX(-50%); background: linear-gradient(to bottom, transparent, rgba(240,185,11,.18) 12%, rgba(240,185,11,.72) 78%, rgba(240,185,11,.08)); box-shadow: 0 0 18px rgba(240,185,11,.25); animation: trunk-breathe 6s ease-in-out infinite; pointer-events: none; }
+.tree-canvas::after { content: ""; position: absolute; z-index: 0; left: 50%; bottom: 2%; width: 360px; height: 180px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(ellipse, rgba(240,185,11,.2), transparent 66%); filter: blur(16px); animation: root-pulse 5.5s ease-in-out infinite; pointer-events: none; }
+@keyframes trunk-breathe { 0%, 100% { opacity: .42; } 50% { opacity: .9; } }
+@keyframes root-pulse { 0%, 100% { opacity: .35; transform: translateX(-50%) scale(.86); } 50% { opacity: .78; transform: translateX(-50%) scale(1.08); } }
 .tree-canvas .react-flow__attribution { display: none; }
 .tree-canvas .react-flow__controls { display: none; }
+.tree-canvas .react-flow__edges { z-index: 1; }
+.tree-canvas .react-flow__nodes { z-index: 2; }
 .tree-canvas .react-flow__edge-path { transition: stroke .3s ease; }
-.tree-canvas .react-flow__edge.animated path { stroke-dasharray: 5 5; animation: edge-flow 1.6s linear infinite; }
+.tree-canvas .react-flow__edge.animated path { animation: edge-flow 1.6s linear infinite; filter: drop-shadow(0 0 4px rgba(240,185,11,.32)); }
 @keyframes edge-flow { to { stroke-dashoffset: -20; } }
-.tree-node { position: relative; min-width: 172px; border: 1px solid var(--line); background: rgba(18,22,27,.94); padding: 10px 12px; cursor: pointer; transition: border-color .2s ease, opacity .2s ease; }
-.tree-node-root { min-width: 194px; display: flex; align-items: center; gap: 10px; border-color: rgba(240,185,11,.65); background: linear-gradient(135deg, rgba(64,49,12,.95), rgba(18,22,27,.96)); cursor: default; }
+.tree-node { position: relative; min-width: 172px; border: 1px solid var(--line); border-radius: 3px; background: rgba(18,22,27,.94); padding: 10px 12px; cursor: pointer; transition: border-color .2s ease, opacity .2s ease, box-shadow .2s ease; backdrop-filter: blur(9px); }
+.tree-node::after { content: ""; position: absolute; inset: 4px; border: 1px solid rgba(255,255,255,.035); pointer-events: none; }
+.tree-node-root { min-width: 204px; display: flex; align-items: center; gap: 10px; border-color: rgba(240,185,11,.72); background: linear-gradient(135deg, rgba(64,49,12,.97), rgba(18,22,27,.97)); cursor: default; box-shadow: 0 0 0 1px rgba(240,185,11,.08), 0 14px 38px rgba(240,185,11,.12); }
 .root-sigil { width: 28px; height: 28px; display: grid; place-items: center; color: #111; background: var(--yellow); }
-.tree-node-branch { border-color: rgba(241,107,107,.5); background: linear-gradient(135deg, rgba(49,26,30,.94), rgba(18,22,27,.94)); }
+.tree-node-main { border-color: rgba(240,185,11,.26); background: linear-gradient(115deg, rgba(31,30,22,.96), rgba(17,21,26,.96) 70%); box-shadow: 0 9px 26px rgba(0,0,0,.24); }
+.tree-node-main::before { content: ""; position: absolute; left: 13%; right: 13%; top: -3px; height: 1px; background: linear-gradient(90deg, transparent, rgba(240,185,11,.75), transparent); box-shadow: 0 0 10px rgba(240,185,11,.5); }
+.tree-node-branch { min-width: 164px; border-color: rgba(241,107,107,.56); background: linear-gradient(135deg, rgba(49,26,30,.96), rgba(18,22,27,.96)); box-shadow: 0 8px 24px rgba(0,0,0,.28); }
+.tree-node-potential { min-width: 142px; border-style: dashed; border-color: rgba(116,128,141,.48); background: linear-gradient(135deg, rgba(25,31,38,.72), rgba(13,17,21,.7)); color: #87929d; cursor: default; }
+.tree-node-potential::before { content: ""; position: absolute; left: 18%; right: 18%; bottom: -3px; height: 1px; background: linear-gradient(90deg, transparent, rgba(100,217,232,.42), transparent); }
+.potential-mark { display: flex; align-items: center; gap: 6px; color: var(--cyan); font-family: 'IBM Plex Mono', monospace; font-size: 7px; letter-spacing: .12em; }
+.potential-mark span { width: 5px; height: 5px; border: 1px solid var(--cyan); border-radius: 50%; box-shadow: 0 0 8px rgba(100,217,232,.7); }
 .tree-node-caption { margin-top: 6px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 8px; line-height: 1.4; }
-.tree-node:hover { border-color: var(--yellow-soft); }
+.tree-node:hover { border-color: var(--yellow-soft); box-shadow: 0 0 24px rgba(240,185,11,.16); }
 .tree-node-active { border-color: var(--yellow); background: rgba(49,40,18,.94); }
 .tree-node-visited { border-left: 3px solid var(--green); }
-.tree-node-muted { opacity: .42; }
+.tree-node-branch.tree-node-muted { opacity: .5; }
+.tree-node-potential.tree-node-muted { opacity: .45; }
 .tree-node-top { display: flex; justify-content: space-between; font-size: 8px; color: var(--muted); letter-spacing: .08em; }
 .tree-node-active .tree-node-top { color: var(--yellow-soft); }
 .tree-node-title { font-size: 11px; font-weight: 700; line-height: 1.45; margin-top: 8px; }

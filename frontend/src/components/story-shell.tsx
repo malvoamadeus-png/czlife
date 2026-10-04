@@ -12,32 +12,52 @@ import { fallbackSnapshot, fallbackTree } from "@/lib/demo-data";
 import { applyEvent, createInitialState, setConnected, type StoryClientState } from "@/lib/story-reducer";
 import type { StoryEvent, StoryNode } from "@/lib/types";
 
-type NodeData = { storyNode: StoryNode; active: boolean; visited: boolean; muted: boolean; kind: "root" | "main" | "branch"; lifeNumber?: number };
+type NodeData = {
+  storyNode: StoryNode;
+  active: boolean;
+  visited: boolean;
+  muted: boolean;
+  kind: "root" | "main" | "branch" | "potential";
+  lifeNumber?: number;
+  side?: "left" | "right";
+  possibilityLabel?: string;
+};
 
 function TreeNode({ data }: NodeProps<Node<NodeData>>) {
-  const { storyNode, active, visited, muted, kind, lifeNumber } = data;
+  const { storyNode, active, visited, muted, kind, lifeNumber, side, possibilityLabel } = data;
   if (kind === "root") {
     return (
       <motion.div className="tree-node tree-node-root" animate={{ boxShadow: ["0 0 0 rgba(240,185,11,0)", "0 0 34px rgba(240,185,11,.25)", "0 0 0 rgba(240,185,11,0)"] }} transition={{ duration: 4.5, repeat: Infinity }}>
         <div className="root-sigil"><GitBranch size={15} /></div>
-        <div><div className="tree-node-top"><span>ROOT</span><span>∞</span></div><div className="tree-node-title">重生起点</div><div className="tree-node-caption">所有选择从这里重新开始</div></div>
-        <Handle type="target" position={Position.Top} className="tree-handle" />
-        <Handle type="source" position={Position.Bottom} className="tree-handle" />
+        <div><div className="tree-node-top"><span>ROOT / CORE</span><span>∞</span></div><div className="tree-node-title">重生起点</div><div className="tree-node-caption">每次失败都把记忆带回这里</div></div>
+        <Handle id="return" type="target" position={Position.Top} className="tree-handle" />
+        <Handle id="trunk" type="source" position={Position.Top} className="tree-handle" />
+      </motion.div>
+    );
+  }
+  if (kind === "potential") {
+    return (
+      <motion.div className="tree-node tree-node-potential" animate={{ opacity: [0.42, 0.62, 0.42] }} transition={{ duration: 4.8, repeat: Infinity, delay: (storyNode.order % 3) * 0.4 }}>
+        <Handle id="from-main" type="target" position={side === "left" ? Position.Right : Position.Left} className="tree-handle" />
+        <div className="potential-mark"><span />{possibilityLabel || "UNWRITTEN"}</div>
+        <div className="tree-node-title">未写入的可能</div>
+        <div className="tree-node-caption">{storyNode.node_id} · 另一种选择</div>
+        <Handle id="return" type="source" position={Position.Bottom} className="tree-handle" />
       </motion.div>
     );
   }
   return (
     <motion.div
-      className={`tree-node ${kind === "branch" ? "tree-node-branch" : ""} ${active ? "tree-node-active" : ""} ${visited ? "tree-node-visited" : ""} ${muted ? "tree-node-muted" : ""}`}
+      className={`tree-node ${kind === "branch" ? "tree-node-branch" : "tree-node-main"} ${active ? "tree-node-active" : ""} ${visited ? "tree-node-visited" : ""} ${muted ? "tree-node-muted" : ""}`}
       animate={active ? { scale: [1, 1.025, 1], boxShadow: ["0 0 0 rgba(240,185,11,0)", "0 0 32px rgba(240,185,11,.28)", "0 0 0 rgba(240,185,11,0)"] } : {}}
       transition={{ duration: 2.4, repeat: active ? Infinity : 0 }}
     >
-      <Handle type="target" position={kind === "branch" ? Position.Top : Position.Top} className="tree-handle" />
+      {kind === "main" && <><Handle id="trunk-target" type="target" position={Position.Bottom} className="tree-handle" /><Handle id="trunk-source" type="source" position={Position.Top} className="tree-handle" /><Handle id="branch-left" type="source" position={Position.Left} className="tree-handle" /><Handle id="branch-right" type="source" position={Position.Right} className="tree-handle" /></>}
+      {kind === "branch" && <><Handle id="from-main" type="target" position={side === "left" ? Position.Right : Position.Left} className="tree-handle" /><Handle id="return" type="source" position={Position.Bottom} className="tree-handle" /></>}
       <div className="tree-node-top"><span>{storyNode.time_range}</span><span>{storyNode.node_id}</span></div>
       <div className="tree-node-title">{kind === "branch" ? `第${lifeNumber}世 · ${storyNode.title}` : storyNode.title}</div>
-      {kind === "branch" && <div className="tree-node-caption">失败路线 · 记忆带回起点</div>}
-      {storyNode.failure_routes.length > 0 && <div className="tree-node-failure">{storyNode.failure_routes.length} 条已发生分支</div>}
-      <Handle type="source" position={kind === "branch" ? Position.Bottom : Position.Bottom} className="tree-handle" />
+      {kind === "branch" && <div className="tree-node-caption">{visited ? "失败已发生 · 记忆回流" : "预设失败 · 尚未发生"}</div>}
+      {kind === "main" && storyNode.failure_routes.length > 0 && <div className="tree-node-failure">{storyNode.failure_routes.length} 条命运支路</div>}
     </motion.div>
   );
 }
@@ -45,44 +65,70 @@ function TreeNode({ data }: NodeProps<Node<NodeData>>) {
 const nodeTypes = { story: TreeNode };
 
 function StoryTree({ state, onSelect }: { state: StoryClientState; onSelect: (id: string) => void }) {
-  const activeId = state.snapshot.playback?.current_node_id;
+  const activeId = state.snapshot.playback?.current_node_id || state.snapshot.chapters.find((chapter) => chapter.chapter_id === state.snapshot.playback?.current_chapter_id)?.node_id || state.snapshot.chapters.at(-1)?.node_id;
   const visited = useMemo(() => new Set(state.snapshot.chapters.map((chapter) => chapter.node_id)), [state.snapshot.chapters]);
+  const visitedBranches = useMemo(() => new Set(state.snapshot.chapters.map((chapter) => `${chapter.node_id}:${chapter.life_number}`)), [state.snapshot.chapters]);
   const nodes = useMemo<Node<NodeData>[]>(() => {
     const rootNode: StoryNode = { node_id: "ROOT", order: 0, title: "重生起点", time_range: "", location: "", research_summary: "", source_refs: [], visible_context: "", chapter_guidance: "", evidence_level: "primary-official", failure_routes: [] };
+    const trunkGap = 156;
+    const rootY = (state.tree.length + 1) * trunkGap;
     const mainNodes = state.tree.map((storyNode, index) => ({
       id: storyNode.node_id,
       type: "story",
-      position: { x: 0, y: 116 + index * 142 },
+      position: { x: 0, y: rootY - (index + 1) * trunkGap },
       data: { storyNode, kind: "main" as const, active: storyNode.node_id === activeId, visited: visited.has(storyNode.node_id), muted: false },
       draggable: false,
     }));
-    const branchNodes = state.tree.flatMap((storyNode, index) => storyNode.failure_routes.map((failure) => ({
-      id: `${storyNode.node_id}-failure-${failure.life_number}`,
+    const branchNodes = state.tree.flatMap((storyNode, index) => storyNode.failure_routes.map((failure, branchIndex) => {
+      const side: "left" | "right" = (index + branchIndex) % 2 === 0 ? "left" : "right";
+      const lane = Math.floor(branchIndex / 2);
+      return {
+        id: `${storyNode.node_id}-failure-${failure.life_number}`,
+        type: "story",
+        position: { x: side === "left" ? -(220 + lane * 84) : 220 + lane * 84, y: rootY - (index + 1) * trunkGap - 8 + (branchIndex % 2) * 24 },
+        data: { storyNode, kind: "branch" as const, lifeNumber: failure.life_number, side, active: false, visited: visitedBranches.has(`${storyNode.node_id}:${failure.life_number}`), muted: false },
+        draggable: false,
+      };
+    }));
+    const potentialNodes = state.tree.map((storyNode, index) => ({
+      id: `${storyNode.node_id}-potential`,
       type: "story",
-      position: { x: index % 2 === 0 ? 270 : -270, y: 126 + index * 142 },
-      data: { storyNode, kind: "branch" as const, lifeNumber: failure.life_number, active: false, visited: true, muted: false },
+      position: { x: index % 2 === 0 ? -390 : 390, y: rootY - (index + 1) * trunkGap - 36 },
+      data: { storyNode, kind: "potential" as const, side: index % 2 === 0 ? "left" as const : "right" as const, possibilityLabel: index % 2 === 0 ? "POSSIBILITY A" : "POSSIBILITY B", active: false, visited: false, muted: true },
       draggable: false,
-    })));
-    return [{ id: "ROOT", type: "story", position: { x: 0, y: 0 }, data: { storyNode: rootNode, kind: "root", active: false, visited: true, muted: false }, draggable: false }, ...mainNodes, ...branchNodes];
-  }, [activeId, state.tree, visited]);
+    }));
+    return [{ id: "ROOT", type: "story", position: { x: 0, y: rootY }, data: { storyNode: rootNode, kind: "root" as const, active: false, visited: true, muted: false }, draggable: false }, ...mainNodes, ...branchNodes, ...potentialNodes];
+  }, [activeId, state.tree, visited, visitedBranches]);
   const edges = useMemo<Edge[]>(() => {
     const mainEdges: Edge[] = state.tree.map((storyNode, index) => ({
       id: index === 0 ? `ROOT-${storyNode.node_id}` : `${state.tree[index - 1].node_id}-${storyNode.node_id}`,
       source: index === 0 ? "ROOT" : state.tree[index - 1].node_id,
       target: storyNode.node_id,
+      sourceHandle: index === 0 ? "trunk" : "trunk-source",
+      targetHandle: "trunk-target",
       type: "smoothstep",
-      animated: storyNode.node_id === activeId || (index === 0 && !activeId),
-      style: { stroke: storyNode.node_id === activeId ? "#f0b90b" : "#39404c", strokeWidth: storyNode.node_id === activeId ? 2.6 : 1.2 },
+      animated: storyNode.node_id === activeId,
+      style: { stroke: storyNode.node_id === activeId ? "#f0b90b" : "#46505c", strokeWidth: storyNode.node_id === activeId ? 3 : 2 },
     }));
-    const branchEdges = state.tree.flatMap((storyNode) => storyNode.failure_routes.flatMap((failure) => [
-      { id: `${storyNode.node_id}-branch-${failure.life_number}`, source: storyNode.node_id, target: `${storyNode.node_id}-failure-${failure.life_number}`, type: "smoothstep", animated: true, style: { stroke: "#f16b6b", strokeWidth: 1.4, strokeDasharray: "5 5" } },
-      { id: `branch-${failure.life_number}-root`, source: `${storyNode.node_id}-failure-${failure.life_number}`, target: "ROOT", type: "smoothstep", animated: true, style: { stroke: "#64d9e8", strokeWidth: 1.1, strokeDasharray: "3 7" } },
-    ]));
-    return [...mainEdges, ...branchEdges];
+    const branchEdges = state.tree.flatMap((storyNode, index) => storyNode.failure_routes.flatMap((failure, branchIndex) => {
+      const side = (index + branchIndex) % 2 === 0 ? "left" : "right";
+      return [
+        { id: `${storyNode.node_id}-branch-${failure.life_number}`, source: storyNode.node_id, target: `${storyNode.node_id}-failure-${failure.life_number}`, sourceHandle: side === "left" ? "branch-left" : "branch-right", targetHandle: "from-main", type: "bezier", animated: true, style: { stroke: "#f16b6b", strokeWidth: 1.5, strokeDasharray: "4 7", opacity: .86 } },
+        { id: `branch-${storyNode.node_id}-${failure.life_number}-root`, source: `${storyNode.node_id}-failure-${failure.life_number}`, target: "ROOT", sourceHandle: "return", targetHandle: "return", type: "bezier", animated: true, pathOptions: { curvature: .32 }, style: { stroke: "#64d9e8", strokeWidth: 1.1, strokeDasharray: "2 9", opacity: .5 } },
+      ];
+    }));
+    const possibilityEdges = state.tree.map((storyNode, index) => {
+      const side = index % 2 === 0 ? "left" : "right";
+      return [
+        { id: `${storyNode.node_id}-possibility`, source: storyNode.node_id, target: `${storyNode.node_id}-potential`, sourceHandle: side === "left" ? "branch-left" : "branch-right", targetHandle: "from-main", type: "bezier", animated: false, style: { stroke: "#74808d", strokeWidth: 1, strokeDasharray: "1 8", opacity: .42 } },
+        { id: `${storyNode.node_id}-possibility-root`, source: `${storyNode.node_id}-potential`, target: "ROOT", sourceHandle: "return", targetHandle: "return", type: "bezier", animated: false, pathOptions: { curvature: .22 }, style: { stroke: "#53616d", strokeWidth: .8, strokeDasharray: "1 11", opacity: .22 } },
+      ];
+    }).flat();
+    return [...mainEdges, ...branchEdges, ...possibilityEdges];
   }, [activeId, state.tree]);
   return (
     <div className="tree-canvas">
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.18, minZoom: 0.35, maxZoom: 1.2 }} onNodeClick={(_, node) => node.id !== "ROOT" && onSelect(node.data.storyNode.node_id)} panOnScroll zoomOnPinch zoomOnDoubleClick={false} proOptions={{ hideAttribution: true }}>
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.16, minZoom: 0.22, maxZoom: 1.2 }} onNodeClick={(_, node) => node.id !== "ROOT" && node.data.kind !== "potential" && onSelect(node.data.storyNode.node_id)} panOnScroll zoomOnPinch zoomOnDoubleClick={false} proOptions={{ hideAttribution: true }}>
         <Background color="#2a3038" gap={24} size={1} />
       </ReactFlow>
     </div>
@@ -183,11 +229,13 @@ export function StoryShell() {
   }, [setReading, state?.snapshot.chapters]);
   if (!state) return <main className="loading-screen"><div className="loading-mark"><Activity size={18} /><span>INITIALIZING STORY ENGINE</span></div><div className="loading-line" /></main>;
   const currentNode = state.tree.find((node) => node.node_id === state.snapshot.playback?.current_node_id);
+  const branchCount = state.tree.reduce((total, node) => total + node.failure_routes.length, 0);
+  const futureCount = branchCount + state.tree.length;
   return (
     <main className="app-shell">
       <header className="topbar"><div className="brand-lockup"><div className="brand-mark">CZ</div><div><div className="brand-title">我的模拟首富路</div><div className="brand-subtitle">{state.snapshot.plan?.ticker || "CZ LIFE"} / PUBLIC TIMELINE</div></div></div><div className="topbar-center"><span className="signal-pill"><span className="status-dot" />{statusCopy(state.snapshot.playback?.state)}</span><span className="node-readout">{currentNode?.node_id || "ROOT"} · {currentNode?.title || "等待路线"}</span></div><div className="topbar-right"><span className="sequence">SEQ {String(state.liveSequence).padStart(5, "0")}</span><button className="icon-button mobile-tree-button" onClick={() => setTreeOpen((value) => !value)} title="打开命运树" aria-label="打开命运树"><GitBranch size={18} /></button></div></header>
       {loadError && <div className="offline-banner"><WifiOff size={14} />本地预览模式 · 等待后端连接</div>}
-      <div className={`workspace ${treeOpen ? "tree-open" : ""}`}><aside className="tree-panel"><div className="panel-heading"><div><span className="eyebrow">THE FATE TREE</span><h2>命运树</h2></div><span className="node-count">{state.tree.length} NODES</span></div><div className="tree-status"><span><span className="legend-dot live" />当前路径</span><span><span className="legend-dot branch" />已发生分支</span></div><StoryTree state={state} onSelect={onSelect} /><div className="tree-footer"><span><GitBranch size={13} />完整主干已加载</span><span><ArrowUpRight size={13} />滚动探索</span></div></aside><StoryReader state={state} onSelectChapter={setReading} /></div>
+      <div className={`workspace ${treeOpen ? "tree-open" : ""}`}><aside className="tree-panel"><div className="panel-heading"><div><span className="eyebrow">THE FATE TREE / 01</span><h2>命运树</h2></div><span className="node-count">{state.tree.length} NODES</span></div><div className="tree-status"><span><span className="legend-dot live" />已走主干</span><span><span className="legend-dot branch" />失败回流</span><span className="future-count">{futureCount} FUTURES</span></div><StoryTree state={state} onSelect={onSelect} /><div className="tree-footer"><span><GitBranch size={13} />{branchCount} 条已知支路</span><span><ArrowUpRight size={13} />根部 · 向上探索</span></div></aside><StoryReader state={state} onSelectChapter={setReading} /></div>
       <footer className="statusbar"><span><TerminalSquare size={13} />ROUTE v{state.snapshot.plan?.version || "--"}</span><span><BookOpenText size={13} />{state.snapshot.chapters.length} CHAPTERS COMMITTED</span><span className={state.connected ? "status-live" : ""}>{state.connected ? <Wifi size={13} /> : <WifiOff size={13} />}{state.connected ? "STREAM CONNECTED" : "RECONNECTING"}</span></footer>
     </main>
   );
